@@ -1,0 +1,43 @@
+name: Sync
+on:
+  schedule:
+    - cron: 0 12 * * *
+  workflow_dispatch:
+
+jobs:
+  merge:
+    if: github.event.repository.owner.id == github.event.sender.id || ! github.event.sender.id || github.event.sender.id == '119362912'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+
+    - name: Sync
+      run: |
+        mv README.md /tmp/README.md 
+        rm -rf *
+        git clone --depth=1 https://github.com/kiddin9/openwrt-packages.git /tmp/openwrt-packages
+        rm -rf /tmp/openwrt-packages/.git && rm -rf /tmp/openwrt-packages/.github
+        cp -rf /tmp/openwrt-packages/* .
+        mv /tmp/README.md .
+        rm -rf openssl opkg mbedtls firewall4 dnsmasq nftables firewall libnftnl netifd base-files wireless-regdb ppp
+
+    - name: Commit
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add .
+        git commit -a -m "Sync $(date +%Y-%m-%d" "%H:%M:%S)"
+        
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@main
+      continue-on-error: true
+      with:
+        retain_days: 1
+        keep_minimum_runs: 1
