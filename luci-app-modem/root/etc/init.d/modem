@@ -324,11 +324,19 @@ qmi()
 
 gobinet()
 {
+	#获取制造商
+	local manufacturer=$(uci -q get modem.modem${modem_no}.manufacturer)
+	
 	#拨号
-	procd_open_instance
-	procd_set_param command sh ${SCRIPT_DIR}/modem_network_task.sh "${id}" "${modem_no}" "gobinet"
-	procd_set_param respawn
-	procd_close_instance
+	case $manufacturer in
+		"quectel") qmi ;;
+		*)
+			procd_open_instance
+			procd_set_param command sh ${SCRIPT_DIR}/modem_network_task.sh "${id}" "${modem_no}" "gobinet"
+			procd_set_param respawn
+			procd_close_instance
+		;;
+	esac
 }
 
 ecm()
@@ -399,11 +407,11 @@ stop_gobinet()
 	#停止拨号
 	local at_command
 	if [ "$manufacturer" = "quectel" ]; then
-		at_command='ATI'
+		stop_qmi
 	elif [ "$manufacturer" = "fibocom" ]; then
 		at_command='AT$QCRMCALL=0,1'
 	elif [ "$manufacturer" = "meig" ]; then
-		at_command='ATI'
+		at_command="AT$QCRMCALL=0,1,${define_connect},2,1"
 	else
 		at_command='ATI'
 	fi
@@ -431,7 +439,7 @@ stop_ecm()
 			at_command="AT+GTRNDIS=0,${define_connect}"
 		fi
 	elif [ "$manufacturer" = "meig" ]; then
-		at_command="AT$QCRMCALL=0,1,${define_connect},2,1"
+		at_command="AT^NDISDUP=${define_connect},0"
 	else
 		at_command='ATI'
 	fi
@@ -622,7 +630,7 @@ dial()
 	#获取模组的拨号模式
 	local time=0
 	local mode
-	while [ $time -lt 5 ]; do
+	while [ $time -lt 10 ]; do
 		mode=$(get_mode ${modem_no})
 		[ -n "$mode" ] && [ "$mode" != "unknown" ] && break
 		sleep 5s
@@ -645,7 +653,7 @@ dial()
 		#获取网络接口
 		local network_interface=$(uci -q get modem.modem${modem_no}.network_interface)
 		#设置网络接口
-		set_interface "${modem_no}" "$network_interface"
+		set_interface "${modem_no}" "${network_interface}"
 	else
 		local config_id=$(awk -v network="${network}" -F',' '!/^#/ && $0 ~ network { print $2 }' "${MODEM_RUN_CONFIG}")
 		#该移动网络已存在，且已有其他拨号配置在运行
