@@ -159,8 +159,8 @@ clean_wfiles(){
 }
 
 clear_iprule(){
-	sleep 1s
 	if [ -n "$(command -v nft)" ]; then
+		fw4 reload
 		nft flush set inet fw4 myipdrop 2>/dev/null
 		nft delete set inet fw4 myipdrop 2>/dev/null
 	else
