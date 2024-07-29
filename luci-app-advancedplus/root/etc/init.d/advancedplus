@@ -137,33 +137,44 @@ else
 fi
 }
 sethttps() {
-    if [ "x$(uci -q get advancedplus.@basic[0].uhttps)" = "x1" ] ; then
-    	if [ -n "$(command -v nginx)" ]; then
-    		uci -q rename nginx.op='_redirect2ssl'
-    		uci -q set nginx._redirect2ssl.server_name='_redirect2ssl'
-    		uci -q del nginx._redirect2ssl.include
-    		uci -q set nginx._redirect2ssl.return='302 https://$host$request_uri'
-    		uci commit nginx
-    		/etc/init.d/nginx reload
+	if [ -n "$(command -v nginx)" ]; then
+		if [ -z "`uci -q get nginx.default_server`" ]; then
+			uci -q set nginx.default_server=server
+			uci -q set nginx.default_server.server_name='op'
+			uci -q add_list nginx.default_server.include='conf.d/*.locations'
+			uci -q set nginx.default_server.access_log='off; # logd openwrt'
+		fi
+		if [ -z "`uci -q get nginx._redirect2ssl`" ]; then
+			uci -q set nginx._redirect2ssl=server
+			uci -q set nginx._redirect2ssl.server_name='_redirect2ssl'
+			uci -q set nginx._redirect2ssl.return='302 https://$host$request_uri'
+			uci -q set nginx._redirect2ssl.access_log='off; # logd openwrt'
+		fi
+    	if [ "x$(uci -q get advancedplus.@basic[0].uhttps)" = "x1" ] ; then
+    		uci -q del nginx.default_server.listen
+    		uci -q add_list nginx.default_server.listen='80'
+    		uci -q add_list nginx.default_server.listen='[::]:80'
+    		uci -q del nginx._redirect2ssl.listen
+    		uci -q add_list nginx._redirect2ssl.listen='80 default_server'
+    		uci -q add_list nginx._redirect2ssl.listen='[::]:80 default_server'
     	else
-	         uci -q set uhttpd.main.redirect_https='1'
-	         uci commit uhttpd
-	         /etc/init.d/uhttpd reload
+	         uci -q del nginx._redirect2ssl.listen
+	         uci -q add_list nginx._redirect2ssl.listen='80'
+	         uci -q add_list nginx._redirect2ssl.listen='[::]:80'
+	         uci -q del nginx.default_server.listen
+	         uci -q add_list nginx.default_server.listen='80 default_server'
+	         uci -q add_list nginx.default_server.listen='[::]:80 default_server'
     	fi
+		uci commit nginx
+    	/etc/init.d/nginx reload
     else
-        if [ -n "$(command -v nginx)" ]; then
-	         uci -q rename nginx._redirect2ssl='op'
-	         uci -q set nginx.op.server_name='op'
-	         uci -q set nginx.op.include='conf.d/*.locations'
-	         uci -q set nginx.op.access_log='off; # logd openwrt'
-	         uci commit nginx
-	         sed -i 's/option return/# option return/' /etc/config/nginx
-	         /etc/init.d/nginx reload
+        if [ "x$(uci -q get advancedplus.@basic[0].uhttps)" = "x1" ] ; then
+	         uci -q set uhttpd.main.redirect_https='1'
 		else
 	         uci -q set uhttpd.main.redirect_https='0'
-	         uci commit uhttpd
-	         /etc/init.d/uhttpd reload
         fi
+		uci commit uhttpd
+	    /etc/init.d/uhttpd reload
     fi
 }
 
